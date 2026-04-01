@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Plus, Check, Trash2, FileText, Sun, Moon } from 'lucide-react';
+import { Plus, Check, Trash2, FileText, Sun, Moon, Zap, Sparkles, ArrowLeft, Info, Cloud, Coffee, Scissors} from 'lucide-react';
 
-// --- Confetti Burst (Existing Logic) ---
+// --- Confetti Burst ---
 const ConfettiBurst = ({ active, onDone }) => {
   const canvasRef = useRef(null);
   useEffect(() => {
@@ -51,7 +51,7 @@ const ConfettiBurst = ({ active, onDone }) => {
   return <canvas ref={canvasRef} style={{ position:'fixed', inset:0, pointerEvents:'none', zIndex:9999 }} />;
 };
 
-// --- Progress Ring (Existing Logic) ---
+// --- Progress Ring ---
 const ProgressRing = ({ value, size = 172, isDark }) => {
   const sw = 5;
   const r = (size - sw * 2) / 2;
@@ -92,14 +92,18 @@ const ProgressRing = ({ value, size = 172, isDark }) => {
   );
 };
 
-// --- Main App Component ---
 export default function Hundrd() {
-  // 1. PERSISTENCE LOGIC (Load from LocalStorage)
   const [projects, setProjects] = useState(() => {
     const saved = localStorage.getItem('hundrd_projects');
     return saved ? JSON.parse(saved) : [
-      { id: 1, name: 'Name of Project', description: 'A minimalist approach to goals.', tasks: [] }
+      { id: 1, name: 'My Journey', description: 'A minimalist approach to goals.', tasks: [] }
     ];
+  });
+  const [showArchived, setShowArchived] = useState(false);
+
+  const [brainDump, setBrainDump] = useState(() => {
+    const savedDump = localStorage.getItem('hundrd_dump');
+    return savedDump ? JSON.parse(savedDump) : [];
   });
 
   const [darkMode, setDarkMode] = useState(() => {
@@ -107,20 +111,29 @@ export default function Hundrd() {
     return savedTheme ? savedTheme === 'dark' : true;
   });
 
+  const filteredProjects = projects.filter(p => !!p.archived === showArchived);
+
   const [activeId, setActiveId] = useState(projects[0]?.id || 1);
   const [taskInput, setTaskInput] = useState('');
+  const [dumpInput, setDumpInput] = useState('');
   const [expandedNotes, setExpandedNotes] = useState(new Set());
   const [confetti, setConfetti] = useState(false);
   const prevProgress = useRef(0);
 
-  // 2. AUTO-SAVE HOOK
   useEffect(() => {
     localStorage.setItem('hundrd_projects', JSON.stringify(projects));
-  }, [projects]);
+    localStorage.setItem('hundrd_dump', JSON.stringify(brainDump));
+  }, [projects, brainDump]);
 
   useEffect(() => {
     localStorage.setItem('hundrd_theme', darkMode ? 'dark' : 'light');
   }, [darkMode]);
+
+  useEffect(() => {
+    if (!filteredProjects.find(p => p.id === activeId) && filteredProjects.length > 0) {
+      setActiveId(filteredProjects[0].id);
+    }
+  }, [showArchived, projects, activeId, filteredProjects]);
 
   const active = projects.find(p => p.id === activeId) ?? projects[0];
   const totalAllocated = active.tasks.reduce((s, t) => s + (Number(t.weight) || 0), 0);
@@ -136,24 +149,35 @@ export default function Hundrd() {
   const setProject = (field, val) =>
     setProjects(ps => ps.map(p => p.id === activeId ? { ...p, [field]: val } : p));
 
-  const addTask = e => {
-    e.preventDefault();
-    if (!taskInput.trim()) return;
-    setProject('tasks', [...active.tasks, { id: Date.now(), text: taskInput.trim(), weight: 0, completed: false, note: '' }]);
-    setTaskInput('');
-  };
-
-  const patchTask = (id, patch) =>
-    setProject('tasks', active.tasks.map(t => t.id === id ? { ...t, ...patch } : t));
-
-  const deleteTask = id => {
-    setProject('tasks', active.tasks.filter(t => t.id !== id));
-  };
-
   const addProject = () => {
     const id = Date.now();
-    setProjects(ps => [...ps, { id, name: 'New Journey', description: '', tasks: [] }]);
+    setProjects(ps => [...ps, { id, name: 'New Journey', description: 'Begin small.', tasks: [] }]);
     setActiveId(id);
+  };
+
+  const addTask = (text, weight = 0) => {
+    setProject('tasks', [...active.tasks, { id: Date.now(), text, weight, completed: false, note: '' }]);
+  };
+
+  const patchTask = (id, patch) => {
+    if (patch.weight !== undefined) patch.weight = Math.max(0, Math.min(100, Number(patch.weight) || 0));
+    setProject('tasks', active.tasks.map(t => t.id === id ? { ...t, ...patch } : t));
+  };
+
+  const kaizenSplit = (task) => {
+    const half = Math.floor(task.weight / 2);
+    const remainder = task.weight - half;
+    const filtered = active.tasks.filter(t => t.id !== task.id);
+    setProject('tasks', [
+      ...filtered, 
+      { ...task, id: Date.now(), text: `${task.text} (1/2)`, weight: half },
+      { ...task, id: Date.now() + 1, text: `${task.text} (2/2)`, weight: remainder }
+    ]);
+  };
+
+  const promoteDump = (item) => {
+    addTask(item.text);
+    setBrainDump(brainDump.filter(d => d.id !== item.id));
   };
 
   const theme = {
@@ -162,134 +186,368 @@ export default function Hundrd() {
     sidebar: darkMode ? 'rgba(255,255,255,0.018)' : 'rgba(0,0,0,0.02)',
     border: darkMode ? 'rgba(237,229,208,0.05)' : 'rgba(45,43,40,0.08)',
     card: darkMode ? 'rgba(237,229,208,0.022)' : 'rgba(0,0,0,0.015)',
-    input: darkMode ? 'rgba(237,229,208,0.025)' : '#ffffff'
+    input: darkMode ? 'rgba(237,229,208,0.025)' : '#ffffff',
+    accent: '#f5a522'
   };
 
-  const budgetState = totalAllocated === 100 ? 'exact' : totalAllocated > 100 ? 'over' : 'under';
   const BUDGET = {
-    exact: { c:'#5ec97c', bg:'rgba(94,201,124,0.1)',  label:'Budget complete ·' },
-    over:  { c:'#e8523a', bg:'rgba(232,82,58,0.1)',   label:`${totalAllocated - 100}% over budget ·` },
-    under: { c:'#f5a522', bg:'rgba(245,165,34,0.1)',  label:`${remaining}% unallocated ·` },
-  }[budgetState];
+    exact: { c:'#5ec97c', bg:'rgba(94,201,124,0.1)', label:'Perfectly Balanced' },
+    over:  { c:'#e8523a', bg:'rgba(232,82,58,0.1)', label:`Over Budget (${totalAllocated-100}%)` },
+    under: { c:'#f5a522', bg:'rgba(245,165,34,0.1)', label:`Unallocated (${remaining}%)` },
+  }[totalAllocated === 100 ? 'exact' : totalAllocated > 100 ? 'over' : 'under'];
 
   return (
     <>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,100..900;1,9..144,100..900&family=Outfit:wght@300;400;500;600&display=swap');
-        *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
-        body{background: ${theme.bg}; color: ${theme.text}; transition: background 0.5s ease, color 0.5s ease; overflow: hidden;}
-        .t-enter{animation: slideUp .42s cubic-bezier(.22,1,.36,1) both;}
-        @keyframes slideUp{from{opacity:0;transform:translateY(16px);}to{opacity:1;transform:translateY(0);}}
-        .note-reveal{animation: reveal .3s ease forwards;}
-        @keyframes reveal{from{opacity:0;max-height:0;}to{opacity:1;max-height:200px;}}
-        .sidebar-btn:hover{ background: ${darkMode ? 'rgba(245,165,34,0.07)' : 'rgba(0,0,0,0.04)'} !important; }
-        .del-btn{ opacity: 0; transition: opacity 0.2s; }
-        .task-row:hover .del-btn{ opacity: 1; }
+        body{background: ${theme.bg}; color: ${theme.text}; font-family: 'Outfit', sans-serif; transition: 0.5s ease; margin:0; overflow:hidden;}
+        .sidebar-btn:hover{ background: ${darkMode ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.04)'} !important; }
+        .task-row:hover .row-actions{ opacity: 1; }
+        .row-actions{ opacity: 0; transition: 0.2s; display: flex; gap: 8px; }
+        .guide-pill{ font-size: 0.6rem; padding: 4px 10px; border-radius: 20px; border: 1px solid ${theme.border}; opacity: 0.5; display: flex; alignItems: center; gap: 6px; }
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-thumb { background: ${theme.border}; border-radius: 10px; }
+        .energy-btn { 
+          opacity: 0.2; 
+          transition: 0.2s; 
+          cursor: pointer; 
+          border: none; 
+          background: none; 
+          color: ${theme.text}; 
+        }
+        .energy-btn.active { 
+          opacity: 1; 
+          color: ${theme.accent}; 
+        }
       `}</style>
 
       <ConfettiBurst active={confetti} onDone={() => setConfetti(false)} />
 
       <div style={{ display:'flex', height:'100vh' }}>
         
-        {/* SIDEBAR */}
-        <aside style={{ width:248, flexShrink:0, background: theme.sidebar, borderRight:`1px solid ${theme.border}`, padding:'2rem 1.25rem', display:'flex', flexDirection:'column' }}>
-          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom: '2.5rem' }}>
+        {/* SIDEBAR: COLLECTIONS */}
+        <aside style={{ width:248, background: theme.sidebar, borderRight:`1px solid ${theme.border}`, padding:'2rem 1.25rem', display:'flex', flexDirection:'column' }}>
+          <div style={{ marginBottom: '2.5rem', display:'flex', justifyContent:'space-between' }}>
             <div>
-              <h1 style={{ fontFamily:"'Fraunces', serif", fontStyle:'italic', fontWeight:300, fontSize:'1.4rem', color:'#f5a522' }}>Hundrd</h1>
-              <div style={{ fontSize:'0.52rem', letterSpacing:'0.24em', textTransform:'uppercase', opacity:0.3 }}>Weighted Focus</div>
+                <h1 style={{ fontFamily:"'Fraunces', serif", fontStyle:'italic', fontWeight:300, fontSize:'1.4rem', color: theme.accent, margin:0 }}>Hundrd</h1>
+                <div style={{ fontSize:'0.52rem', letterSpacing:'0.24em', textTransform:'uppercase', opacity:0.3 }}>Weighted Focus</div>
             </div>
             <button onClick={() => setDarkMode(!darkMode)} style={{ background:'none', border:'none', cursor:'pointer', color: theme.text, opacity:0.4 }}>
-              {darkMode ? <Sun size={18} /> : <Moon size={18} />}
+              {darkMode ? <Sun size={16} /> : <Moon size={16} />}
+            </button>
+          </div>
+
+          <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+            <button 
+              onClick={() => setShowArchived(false)}
+              style={{ 
+                flex: 1, fontSize: '0.6rem', padding: '4px', borderRadius: 6,
+                background: !showArchived ? theme.card : 'none',
+                border: `1px solid ${theme.border}`, color: theme.text
+              }}
+            >
+              Active
+            </button>
+            <button 
+              onClick={() => setShowArchived(true)}
+              style={{ 
+                flex: 1, fontSize: '0.6rem', padding: '4px', borderRadius: 6,
+                background: showArchived ? theme.card : 'none',
+                border: `1px solid ${theme.border}`, color: theme.text
+              }}
+            >
+              Archived
             </button>
           </div>
 
           <div style={{ flex:1, overflowY:'auto' }}>
             <div style={{ fontSize:'0.52rem', letterSpacing:'0.25em', textTransform:'uppercase', opacity:0.3, fontWeight:600, marginBottom:'1rem' }}>Collections</div>
-            {projects.map(p => (
-              <button key={p.id} className="sidebar-btn" onClick={() => setActiveId(p.id)} style={{
+            {filteredProjects.map(p => (
+              <button key={p.id} onClick={() => setActiveId(p.id)} className="sidebar-btn" style={{
                 width:'100%', padding:'0.7rem', borderRadius:10, textAlign:'left', border:'none', cursor:'pointer', marginBottom:4,
                 background: p.id === activeId ? (darkMode ? 'rgba(245,165,34,0.1)' : 'rgba(0,0,0,0.05)') : 'transparent',
-                color: p.id === activeId ? theme.text : 'rgba(128,128,128,0.5)', transition:'0.2s'
+                color: p.id === activeId ? theme.text : 'rgba(128,128,128,0.5)'
               }}>
                 <div style={{ fontSize:'0.8rem', fontWeight:500 }}>{p.name || 'Untitled'}</div>
               </button>
             ))}
-            <button onClick={addProject} style={{ background:'none', border:'none', color:'#f5a522', fontSize:'0.75rem', padding:'0.7rem', cursor:'pointer', display:'flex', alignItems:'center', gap:6 }}>
-              <Plus size={14} /> New Project
+            <button onClick={addProject} style={{ background:'none', border:'none', color: theme.accent, fontSize:'0.75rem', padding:'0.7rem', cursor:'pointer', display:'flex', alignItems:'center', gap:6 }}>
+              <Plus size={14} /> New Journey
             </button>
           </div>
         </aside>
 
-        {/* MAIN */}
-        <main style={{ flex:1, overflowY:'auto', padding:'3rem' }}>
+        {/* MAIN CONTENT */}
+        <main style={{ flex:1, overflowY:'auto', padding:'3rem 2rem' }}>
           <div style={{ maxWidth:680, margin:'0 auto' }}>
-            <header style={{ marginBottom:'3rem' }}>
-              <input value={active.name} onChange={e => setProject('name', e.target.value)} style={{
-                background:'none', border:'none', outline:'none', color: theme.text, width:'100%',
-                fontFamily:"'Fraunces', serif", fontStyle:'italic', fontSize:'3.5rem', fontWeight:200, letterSpacing:'-0.02em'
-              }} />
-              <input value={active.description} onChange={e => setProject('description', e.target.value)} placeholder="Subtitle..." style={{
-                background:'none', border:'none', outline:'none', color: theme.text, opacity:0.3, width:'100%', fontSize:'0.9rem'
-              }} />
+            
+            {/* MINI GUIDE SECTION */}
+            <div style={{ display:'flex', gap:12, marginBottom:40 }}>
+                <div className="guide-pill"><Sparkles size={10}/> Brain Dump first</div>
+                <div className="guide-pill"><Zap size={10}/> Weight by impact</div>
+                <div className="guide-pill"><Info size={10}/> Finish at 100%</div>
+            </div>
 
-              <div style={{ display:'flex', alignItems:'center', gap:'2.5rem', marginTop:'2.5rem' }}>
+            <header style={{ marginBottom: '3rem' }}>
+              <input
+                value={active.name}
+                onChange={(e) => setProject('name', e.target.value)}
+                style={{
+                  background: 'none', border: 'none', outline: 'none', color: theme.text, width: '100%',
+                  fontFamily: "'Fraunces', serif", fontStyle: 'italic', fontSize: '3.5rem', fontWeight: 200, marginBottom: 8
+                }}
+              />
+              <input
+                value={active.description}
+                onChange={(e) => setProject('description', e.target.value)}
+                placeholder="What is the intent of this journey?"
+                style={{
+                  background: 'none', border: 'none', outline: 'none', color: theme.text, opacity: 0.3, width: '100%', fontSize: '1rem'
+                }}
+              />
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '3rem', marginTop: '3rem' }}>
                 <ProgressRing value={progressValue} isDark={darkMode} />
-                <div style={{ flex:1 }}>
-                  <div style={{ display:'inline-block', padding:'4px 12px', borderRadius:20, background: BUDGET.bg, color: BUDGET.c, fontSize:'0.65rem', fontWeight:600, marginBottom:16 }}>
+                
+                <div style={{ flex: 1 }}>
+                  <div style={{ background: BUDGET.bg, color: BUDGET.c, fontSize: '0.65rem', padding: '4px 12px', borderRadius: 20, fontWeight: 700, marginBottom: 16, display: 'inline-block' }}>
                     {BUDGET.label}
                   </div>
-                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:20 }}>
-                     <div>
-                       <div style={{ fontSize:'0.5rem', textTransform:'uppercase', opacity:0.3 }}>Allocated</div>
-                       <div style={{ fontFamily:"'Fraunces', serif", fontSize:'1.5rem' }}>{totalAllocated}%</div>
-                     </div>
-                     <div>
-                       <div style={{ fontSize:'0.5rem', textTransform:'uppercase', opacity:0.3 }}>Remaining</div>
-                       <div style={{ fontFamily:"'Fraunces', serif", fontSize:'1.5rem' }}>{Math.max(0, remaining)}%</div>
-                     </div>
+
+                  {/* Stats Grid */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 20 }}>
+                    <div>
+                      <div style={{ fontSize: '0.5rem', opacity: 0.3, textTransform: 'uppercase' }}>Progress</div>
+                      <div style={{ fontSize: '1.6rem', fontFamily: "'Fraunces', serif", color: theme.accent }}>{progressValue}%</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '0.5rem', opacity: 0.3, textTransform: 'uppercase' }}>Allocated</div>
+                      <div style={{ fontSize: '1.6rem', fontFamily: "'Fraunces', serif" }}>{totalAllocated}%</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '0.5rem', opacity: 0.3, textTransform: 'uppercase' }}>Remaining</div>
+                      <div style={{ fontSize: '1.6rem', fontFamily: "'Fraunces', serif" }}>{Math.max(0, remaining)}%</div>
+                    </div>
+                  </div>
+
+                  {/* Kaizen Journal - Moved outside the grid to span full width */}
+                  <div style={{ marginTop: 24, borderTop: `1px solid ${theme.border}`, paddingTop: 16 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                      <Sparkles size={12} color={theme.accent} />
+                      <span style={{ fontSize: '0.6rem', letterSpacing: '0.1em', opacity: 0.4, fontWeight: 700 }}>
+                        DAILY KAIZEN
+                      </span>
+                    </div>
+                    <input
+                      value={active.journal || ''}
+                      onChange={(e) => setProject('journal', e.target.value)}
+                      placeholder="What made today 1% better?"
+                      style={{
+                        width: '100%', background: 'none', border: 'none', outline: 'none',
+                        fontSize: '0.9rem', color: theme.text, fontStyle: 'italic',
+                        opacity: active.journal ? 1 : 0.5
+                      }}
+                    />
                   </div>
                 </div>
               </div>
             </header>
 
-            <form onSubmit={addTask} style={{ position:'relative', marginBottom:20 }}>
-              <input value={taskInput} onChange={e => setTaskInput(e.target.value)} placeholder="Milestone..." style={{
-                width:'100%', background: theme.input, border:`1px solid ${theme.border}`, borderRadius:12, padding:'1rem', color: theme.text, outline:'none'
+            <form onSubmit={(e) => { e.preventDefault(); if(taskInput.trim()){ addTask(taskInput.trim()); setTaskInput(''); } }} style={{ position:'relative', marginBottom:24 }}>
+              <input value={taskInput} onChange={e => setTaskInput(e.target.value)} placeholder="Define a milestone..." style={{
+                width:'100%', background: theme.card, border:`1px solid ${theme.border}`, padding:'1.2rem', borderRadius:16, color:theme.text, outline:'none'
               }} />
-              <button type="submit" style={{ position:'absolute', right:10, top:'50%', transform:'translateY(-50%)', background:'#f5a522', border:'none', borderRadius:8, width:30, height:30, cursor:'pointer' }}>
-                <Plus size={16} color="white" />
+              <button style={{ position:'absolute', right:12, top:'50%', transform:'translateY(-50%)', background: theme.accent, border:'none', borderRadius:10, padding:8, cursor:'pointer' }}>
+                <Plus size={18} color="white"/>
               </button>
             </form>
 
-            <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-              {active.tasks.map((t, i) => (
-                <div key={t.id} className="task-row t-enter" style={{ background: theme.card, border:`1px solid ${theme.border}`, borderRadius:12, padding:'1rem', animationDelay: `${i * 0.05}s` }}>
-                  <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+            <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+              {active.tasks.map(t => (
+                <div key={t.id} className="task-row" style={{ background: theme.card, border:`1px solid ${theme.border}`, borderRadius:16, padding:'1rem' }}>
+                  <div style={{ display:'flex', alignItems:'center', gap:14 }}>
                     <button onClick={() => patchTask(t.id, { completed: !t.completed })} style={{
-                      width:20, height:20, borderRadius:'50%', border: t.completed ? 'none' : `1px solid ${theme.border}`, background: t.completed ? '#5ec97c' : 'none', cursor:'pointer'
+                      width:22, height:22, borderRadius:'50%', border: t.completed ? 'none' : `1px solid ${theme.border}`, background: t.completed ? '#5ec97c' : 'none', cursor:'pointer'
                     }}>
-                      {t.completed && <Check size={12} color="white" />}
+                      {t.completed && <Check size={14} color="white" />}
                     </button>
                     <span style={{ flex:1, opacity: t.completed ? 0.3 : 1, textDecoration: t.completed ? 'line-through' : 'none' }}>{t.text}</span>
-                    <input type="number" value={t.weight} onChange={e => patchTask(t.id, { weight: e.target.value })} style={{
-                      width:35, background:'none', border:'none', color: '#f5a522', textAlign:'right', fontWeight:600, outline:'none'
-                    }} />
-                    <span style={{ fontSize:'0.6rem', opacity:0.2 }}>%</span>
-                    <button onClick={() => toggleNote(t.id)} style={{ background:'none', border:'none', cursor:'pointer', color: theme.text, opacity:0.2 }}><FileText size={14}/></button>
-                    <button onClick={() => deleteTask(t.id)} className="del-btn" style={{ background:'none', border:'none', cursor:'pointer', color:'#e8523a' }}><Trash2 size={14}/></button>
+                    
+                    <div className="row-actions">
+                      <button 
+                        onClick={() => patchTask(t.id, { energy: 'low' })} 
+                        className={`energy-btn ${t.energy === 'low' ? 'active' : ''}`}
+                        title="Low Energy"
+                      >
+                        <Cloud size={14}/>
+                      </button>
+                      <button 
+                        onClick={() => patchTask(t.id, { energy: 'med' })} 
+                        className={`energy-btn ${t.energy === 'med' ? 'active' : ''}`}
+                        title="Medium Energy"
+                      >
+                        <Coffee size={14}/>
+                      </button>
+                      <button 
+                        onClick={() => patchTask(t.id, { energy: 'high' })} 
+                        className={`energy-btn ${t.energy === 'high' ? 'active' : ''}`}
+                        title="High Energy"
+                      >
+                        <Zap size={14}/>
+                      </button>
+                       <button onClick={() => kaizenSplit(t)} title="Kaizen Split" style={{ background:'none', border:'none', cursor:'pointer', color: theme.accent }}><Scissors size={14}/></button>
+                       <button onClick={() => { const n = new Set(expandedNotes); if(n.has(t.id)) n.delete(t.id); else n.add(t.id); setExpandedNotes(n); }} style={{ background:'none', border:'none', cursor:'pointer', color: theme.text, opacity:0.3 }}><FileText size={14}/></button>
+                       <button onClick={() => setProject('tasks', active.tasks.filter(x => x.id !== t.id))} style={{ background:'none', border:'none', cursor:'pointer', color:'#e8523a' }}><Trash2 size={14}/></button>
+                    </div>
+
+                    <div style={{ display:'flex', alignItems:'center', gap:4 }}>
+                      <input type="number" value={t.weight} onChange={e => patchTask(t.id, { weight: e.target.value })} style={{
+                        width:34, background:'none', border:'none', color: theme.accent, fontWeight:700, textAlign:'right', outline:'none'
+                      }} />
+                      <span style={{ fontSize:'0.6rem', opacity:0.2 }}>%</span>
+                    </div>
                   </div>
                   {expandedNotes.has(t.id) && (
-                    <div className="note-reveal" style={{ marginTop:12 }}>
-                      <textarea value={t.note} onChange={e => patchTask(t.id, { note: e.target.value })} style={{
-                        width:'100%', background:'rgba(0,0,0,0.1)', border:'none', borderRadius:8, padding:10, color: theme.text, fontSize:'0.8rem'
-                      }} />
-                    </div>
+                    <textarea value={t.note} onChange={e => patchTask(t.id, { note: e.target.value })} style={{
+                      width:'100%', marginTop:12, background:'rgba(0,0,0,0.05)', border:'none', borderRadius:8, paddingLeft: 20, padding:10, color: theme.text, fontSize:'0.8rem', minHeight:60
+                    }} placeholder="Notes and tactical steps..." />
                   )}
                 </div>
               ))}
             </div>
           </div>
         </main>
+
+        {/* RIGHT SIDEBAR: BRAIN DUMP */}
+        <aside style={{ 
+          width: 260, 
+          background: theme.sidebar, 
+          borderLeft: `1px solid ${theme.border}`, 
+          padding: '2rem 1.25rem', 
+          display: 'flex', 
+          flexDirection: 'column',
+          height: '100vh' 
+        }}>
+          {/* Header */}
+          <div style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Sparkles size={14} color={theme.accent} />
+            <div style={{ fontSize: '0.6rem', letterSpacing: '0.2em', textTransform: 'uppercase', fontWeight: 700, opacity: 0.4 }}>
+              Brain Dump
+            </div>
+          </div>
+
+          {/* Input Section */}
+          <form 
+            onSubmit={(e) => { 
+              e.preventDefault(); 
+              if (dumpInput.trim()) { 
+                // Splits bulk text into individual cards
+                const newEntries = dumpInput
+                  .split('\n')
+                  .filter(line => line.trim() !== '')
+                  .map((text, i) => ({ id: Date.now() + i, text: text.trim() }));
+
+                setBrainDump([...newEntries, ...brainDump]); 
+                setDumpInput(''); 
+              } 
+            }} 
+            style={{ marginBottom: 20 }}
+          >
+            <textarea 
+              value={dumpInput} 
+              onChange={e => setDumpInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  e.currentTarget.form.requestSubmit();
+                }
+              }}
+              placeholder="Type a thought." 
+              style={{
+                width: '100%', 
+                background: darkMode ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.05)', 
+                border: `1px solid ${theme.border}`, 
+                borderRadius: 12, 
+                padding: '12px', 
+                color: theme.text, 
+                fontSize: '0.85rem', 
+                outline: 'none', 
+                minHeight: '80px', 
+                resize: 'none', 
+                fontFamily: 'inherit',
+                lineHeight: 1.5
+              }} 
+            />
+            <div style={{ 
+              display: 'flex', 
+              justifyContent: 'space-between', 
+              alignItems: 'center', 
+              marginTop: 8, 
+              opacity: 0.4, 
+              fontSize: '0.6rem' 
+            }}>
+              <span>{dumpInput.split('\n').filter(t => t.trim()).length} thoughts pending</span>
+              <span>⌘</span>
+            </div>
+          </form>
+
+          {/* Scrollable List Section */}
+          <div style={{ 
+            flex: 1, 
+            overflowY: 'auto', 
+            paddingRight: 4, 
+            display: 'flex', 
+            flexDirection: 'column', 
+            gap: 12 
+          }}>
+            {brainDump.length === 0 ? (
+              <div style={{ opacity: 0.2, fontSize: '0.7rem', textAlign: 'center', marginTop: 40 }}>
+                Your mind is clear. <br/> (For now.)
+              </div>
+            ) : (
+              brainDump.map(item => (
+                <div 
+                  key={item.id} 
+                  style={{ 
+                    padding: '14px', 
+                    background: theme.card, 
+                    borderRadius: 12, 
+                    fontSize: '0.85rem', 
+                    border: `1px solid ${theme.border}`,
+                    transition: '0.2s ease'
+                  }}
+                >
+                  <div style={{ marginBottom: 12, opacity: 0.9, lineHeight: 1.4 }}>
+                    {item.text}
+                  </div>
+                  
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button 
+                      onClick={() => promoteDump(item)} 
+                      style={{ 
+                        flex: 1, background: theme.accent, border: 'none', color: 'white', 
+                        borderRadius: 8, padding: '6px', cursor: 'pointer', fontSize: '0.7rem', 
+                        fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 
+                      }}
+                    >
+                      <ArrowLeft size={12} /> Milestone
+                    </button>
+                    <button 
+                      onClick={() => setBrainDump(brainDump.filter(x => x.id !== item.id))} 
+                      style={{ 
+                        width: 32, background: 'none', border: `1px solid ${theme.border}`, 
+                        cursor: 'pointer', color: '#e8523a', borderRadius: 8,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center'
+                      }}
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </aside>
       </div>
     </>
   );
