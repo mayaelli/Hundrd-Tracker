@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Plus, Check, Trash2, FileText, Sun, Moon, Zap, Sparkles, ArrowLeft, Info, Cloud, Coffee, Scissors} from 'lucide-react';
+import { Plus, Check, Trash2, FileText, Sun, Moon, Zap, Sparkles, ArrowLeft, Info, Cloud, Coffee, Flame} from 'lucide-react';
 
 // --- Confetti Burst ---
 const ConfettiBurst = ({ active, onDone }) => {
@@ -393,9 +393,9 @@ export default function Hundrd() {
                         className={`energy-btn ${t.energy === 'high' ? 'active' : ''}`}
                         title="High Energy"
                       >
-                        <Zap size={14}/>
+                        <Flame size={14}/>
                       </button>
-                       <button onClick={() => kaizenSplit(t)} title="Kaizen Split" style={{ background:'none', border:'none', cursor:'pointer', color: theme.accent }}><Scissors size={14}/></button>
+                       <button onClick={() => kaizenSplit(t)} title="Kaizen Split" style={{ background:'none', border:'none', cursor:'pointer', color: theme.accent }}><Zap size={14}/></button>
                        <button onClick={() => { const n = new Set(expandedNotes); if(n.has(t.id)) n.delete(t.id); else n.add(t.id); setExpandedNotes(n); }} style={{ background:'none', border:'none', cursor:'pointer', color: theme.text, opacity:0.3 }}><FileText size={14}/></button>
                        <button onClick={() => setProject('tasks', active.tasks.filter(x => x.id !== t.id))} style={{ background:'none', border:'none', cursor:'pointer', color:'#e8523a' }}><Trash2 size={14}/></button>
                     </div>
