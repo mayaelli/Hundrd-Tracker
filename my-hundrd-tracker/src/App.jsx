@@ -323,8 +323,7 @@ const rollDopamine = () => {
     setBrainDump(brainDump.filter(d => d.id !== item.id));
   };
 
-  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
-  const [isTablet, setIsTablet] = useState(() => window.innerWidth >= 768 && window.innerWidth < 1024);
+  const [isTablet, setIsTablet] = useState(() => window.innerWidth < 1024);
   const [leftCollapsed, setLeftCollapsed] = useState(() => window.innerWidth < 1024);
   const [rightCollapsed, setRightCollapsed] = useState(() => window.innerWidth < 1024);
   const [zenMode, setZenMode] = useState(false);
@@ -332,8 +331,7 @@ const rollDopamine = () => {
   useEffect(() => {
     const onResize = () => {
       const w = window.innerWidth;
-      setIsMobile(w < 768);
-      setIsTablet(w >= 768 && w < 1024);
+      setIsTablet(w < 1024);
       if (w < 1024) { setLeftCollapsed(true); setRightCollapsed(true); }
       else { setLeftCollapsed(false); setRightCollapsed(false); }
     };
@@ -403,32 +401,39 @@ const rollDopamine = () => {
           margin: 0 auto;
         }
         @media (max-width: 767px) {
-          body { overflow: hidden; }
-          .mobile-overlay-sidebar {
-            position: fixed !important;
-            top: 0; bottom: 0; z-index: 100;
-            height: 100vh !important;
-            box-shadow: 0 0 40px rgba(0,0,0,0.3);
-          }
-          .mobile-overlay-backdrop {
-            position: fixed; inset: 0; z-index: 99;
-            background: rgba(0,0,0,0.4); backdrop-filter: blur(2px);
-          }
-          .desktop-toggle { display: none !important; }
-          .main-content { padding: 1.5rem 1rem !important; padding-bottom: 80px !important; }
+          .app-shell { display: none !important; }
+          .mobile-warning { display: flex !important; }
         }
         @media (min-width: 768px) {
-          .mobile-bottom-nav { display: none !important; }
-          .mobile-overlay-backdrop { display: none !important; }
+          .mobile-warning { display: none !important; }
         }
         @media (min-width: 768px) and (max-width: 1023px) {
           .main-content { padding: 2rem 1.25rem !important; }
         }
+        @media (max-width: 768px) {
+          .mobile-warning { display: flex !important; }
+          /* Hide the rest of the app */
+          #root > div:not(.mobile-warning) { display: none; }
+        }
       `}</style>
+
+      {/* MOBILE WARNING — shown only on phones via CSS */}
+      <div className="mobile-warning" style={{
+        position: 'fixed', inset: 0, background: theme.bg, zIndex: 9999,
+        flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+        padding: '2rem', textAlign: 'center', gap: 12
+      }}>
+        <div style={{ fontSize: '2.5rem', marginBottom: 8 }}>🖥️</div>
+        <div style={{ fontFamily: "'Fraunces', serif", fontStyle: 'italic', fontSize: '1.5rem', color: theme.accent, marginBottom: 6 }}>Hundrd</div>
+        <div style={{ fontSize: '1rem', fontWeight: 600, color: theme.text, marginBottom: 8 }}>Built for bigger screens</div>
+        <div style={{ fontSize: '0.8rem', color: theme.text, opacity: 0.5, lineHeight: 1.6, maxWidth: 280 }}>
+          Open Hundrd on a tablet or desktop for the full focus experience.
+        </div>
+      </div>
 
       <ConfettiBurst active={confetti} onDone={() => setConfetti(false)} />
 
-      <div style={{ display:'flex', height:'100vh', position: 'relative' }}>
+      <div className="app-shell" style={{ display:'flex', height:'100vh', position: 'relative' }}>
 
         {/* LEFT COLLAPSE TOGGLE — desktop only */}
         <button
@@ -445,13 +450,6 @@ const rollDopamine = () => {
           {leftCollapsed ? <ChevronRight size={12} /> : <ChevronLeft size={12} />}
         </button>
 
-        {/* MOBILE OVERLAY BACKDROP */}
-        {isMobile && (!leftCollapsed || !rightCollapsed) && (
-          <div
-            className="mobile-overlay-backdrop"
-            onClick={() => { setLeftCollapsed(true); setRightCollapsed(true); }}
-          />
-        )}
 
         {/* SIDEBAR: COLLECTIONS */}
         <aside style={{
@@ -490,6 +488,8 @@ const rollDopamine = () => {
               </button>
             </div>
           </div>
+
+          
 
           <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
             <button
@@ -620,8 +620,8 @@ const rollDopamine = () => {
         </aside>
 
         {/* MAIN CONTENT */}
-        <main className="main-content" style={{ flex:1, overflowY:'auto', padding: isMobile ? '1.5rem 1rem 80px' : isTablet ? '2rem 1.25rem' : '3rem 2rem' }}>
-          <div style={{ maxWidth: isMobile ? '100%' : 680, margin:'0 auto' }}>
+        <main className="main-content" style={{ flex:1, overflowY:'auto', padding: isTablet ? '2rem 1.25rem' : '3rem 2rem' }}>
+          <div style={{ maxWidth: 680, margin:'0 auto' }}>
             
             {/* ARCHIVE PROMPT */}
             {showArchivePrompt && !active.archived && (
@@ -813,16 +813,12 @@ const rollDopamine = () => {
         </button>
 
         {/* RIGHT SIDEBAR: BRAIN DUMP */}
-        <aside
-          className={isMobile && !rightCollapsed ? 'mobile-overlay-sidebar' : ''}
-          style={{
-            width: rightCollapsed ? (isMobile ? 0 : 0) : (isMobile ? '85vw' : isTablet ? 240 : 260),
-            maxWidth: isMobile ? 320 : undefined,
+        <aside style={{
+            width: rightCollapsed ? 0 : (isTablet ? 240 : 260),
             opacity: rightCollapsed ? 0 : 1,
-            background: isMobile ? theme.bg : theme.sidebar,
+            background: theme.sidebar,
             borderLeft: `1px solid ${theme.border}`,
             padding: rightCollapsed ? 0 : '2rem 1.25rem',
-            right: isMobile ? 0 : undefined,
             display: 'flex', flexDirection: 'column',
             height: '100vh', overflow: 'hidden',
             transition: 'width 0.4s cubic-bezier(0.4,0,0.2,1), opacity 0.3s'
@@ -1067,50 +1063,6 @@ const rollDopamine = () => {
           )}
         </aside>
 
-        {/* MOBILE BOTTOM NAV */}
-        <nav className="mobile-bottom-nav" style={{
-          position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 50,
-          height: 60, background: theme.bg, borderTop: `1px solid ${theme.border}`,
-          display: 'flex', alignItems: 'center', justifyContent: 'space-around',
-          backdropFilter: 'blur(12px)'
-        }}>
-          <button
-            onClick={() => { setLeftCollapsed(v => !v); setRightCollapsed(true); }}
-            style={{
-              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
-              background: 'none', border: 'none', cursor: 'pointer',
-              color: !leftCollapsed ? theme.accent : theme.text, opacity: !leftCollapsed ? 1 : 0.4,
-              fontSize: '0.5rem', letterSpacing: '0.1em', textTransform: 'uppercase'
-            }}
-          >
-            <Plus size={18} />
-            Collections
-          </button>
-          <button
-            onClick={() => setDarkMode(v => !v)}
-            style={{
-              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
-              background: 'none', border: 'none', cursor: 'pointer',
-              color: theme.text, opacity: 0.4,
-              fontSize: '0.5rem', letterSpacing: '0.1em', textTransform: 'uppercase'
-            }}
-          >
-            {darkMode ? <Sun size={18} /> : <Moon size={18} />}
-            {darkMode ? 'Light' : 'Dark'}
-          </button>
-          <button
-            onClick={() => { setRightCollapsed(v => !v); setLeftCollapsed(true); }}
-            style={{
-              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
-              background: 'none', border: 'none', cursor: 'pointer',
-              color: !rightCollapsed ? theme.accent : theme.text, opacity: !rightCollapsed ? 1 : 0.4,
-              fontSize: '0.5rem', letterSpacing: '0.1em', textTransform: 'uppercase'
-            }}
-          >
-            <Sparkles size={18} />
-            Brain Dump
-          </button>
-        </nav>
 
       </div>
     </>
